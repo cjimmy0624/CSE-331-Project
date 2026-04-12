@@ -45,7 +45,7 @@ public class Solution {
 
         boolean improvedPath = true;
         int loops = 0;
-        while (improvedPath && loops < 40) {
+        while (improvedPath && loops < 75) {
             loops++;
             improvedPath = false;
 
@@ -97,7 +97,7 @@ public class Solution {
 
         boolean improvedBandwidth = true;
         int loop2 = 0;
-        while (improvedBandwidth && loop2 < 90) {
+        while (improvedBandwidth && loop2 < 75) {
             improvedBandwidth = false;
             loop2++;
 
@@ -258,14 +258,21 @@ public class Solution {
     private ArrayList<Integer> alternativeBFS (Graph graph, int clientId, ArrayList<Integer> avoidedNodes){
         Queue<Integer> q = new LinkedList<>();
         HashMap<Integer, Integer> parent = new HashMap<>();
-        ArrayList<Integer> visitedNode = new ArrayList<>();
+
+        boolean[] visited = new boolean[graph.size()];
+        boolean[] avoidNodes = new boolean[graph.size()];
+
+        for (int node: avoidedNodes) {
+            avoidNodes[node] = true;
+        }
 
         q.add(graph.contentProvider);
         parent.put(graph.contentProvider, -1);
-        visitedNode.add(graph.contentProvider);
+        visited[graph.contentProvider] = true;
 
         while (!q.isEmpty()){
             int current = q.poll();
+
             if (current == clientId){
                 ArrayList<Integer> currentPath = new ArrayList<>();
                 int x = clientId;
@@ -279,8 +286,8 @@ public class Solution {
             ArrayList<Integer> neighborsOfNode = graph.get(current);
             if (neighborsOfNode != null){
                 for (int neighbor : neighborsOfNode) {
-                    if (!avoidedNodes.contains(neighbor) && !visitedNode.contains(neighbor)) {
-                        visitedNode.add(neighbor);
+                    if (!avoidNodes[neighbor] && !visited[neighbor]) {
+                        visited[neighbor] = true;
                         q.add(neighbor);
                         parent.put(neighbor, current);
                     }
