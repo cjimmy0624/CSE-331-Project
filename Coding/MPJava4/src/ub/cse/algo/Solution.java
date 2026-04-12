@@ -34,7 +34,6 @@ public class Solution {
         SolutionObject sol = new SolutionObject();
         sol.paths = Traversals.bfsPaths(this.graph, this.clients);
         sol.bandwidths = new ArrayList<>(bandwidths);
-        sol.priorities = new HashMap<>(clients.size());
 
         HashMap<Integer, Client> clientsMap = new HashMap<>();
         for (Client client : clients) {
@@ -50,7 +49,7 @@ public class Solution {
             loops++;
             improvedPath = false;
 
-            ArrayList<Pair<Integer, Double>> clientsSorted = sortByBetaAndAlpha(clients, clientsDelay, sol);
+            ArrayList<Pair<Integer, Double>> clientsSorted = sortByBetaAndAlpha(clients, clientsDelay, sol.paths);
             HashMap<Integer, Integer> nodeMap = findRiskyNodes(clientsSorted, sol.paths, sol.bandwidths);
             ArrayList<Integer> nodesSorted = sortNodesByRisk(nodeMap);
 
@@ -102,7 +101,7 @@ public class Solution {
             improvedBandwidth = false;
             loop2++;
 
-            ArrayList<Pair<Integer, Double>> clientsSorted = sortByBetaAndAlpha(clients, clientsDelay, sol);
+            ArrayList<Pair<Integer, Double>> clientsSorted = sortByBetaAndAlpha(clients, clientsDelay, sol.paths);
             HashMap<Integer, Integer> nodeMap = findRiskyNodes(clientsSorted, sol.paths, sol.bandwidths);
             ArrayList<Integer> nodesSorted = sortNodesByRisk(nodeMap);
 
@@ -141,21 +140,21 @@ public class Solution {
     /**
      * @param clientList: list of client
      * @param clientsDelay: hashmap of clients and how long each client takes to reach destination with a finite bandwidth
-     * @param sol: Solution Object
+     * @param paths: hashmap of clients and their respective shortest path with unlimited bandwidth
      * @return a sorted list of client id based on their beta and alpha values
      */
-    private  ArrayList<Pair<Integer,Double>> sortByBetaAndAlpha(ArrayList<Client> clientList, HashMap<Integer, Integer> clientsDelay,SolutionObject sol) {
+    private  ArrayList<Pair<Integer,Double>> sortByBetaAndAlpha(ArrayList<Client> clientList, HashMap<Integer, Integer> clientsDelay, HashMap<Integer, ArrayList<Integer>> paths) {
         ArrayList<Pair<Integer,Double>> clientsScore = new ArrayList<>();
         for (Client client : clientList) {
-            double clientAlphaRequirement = client.alpha * (sol.paths.get(client.id).size() - 1);
-            double clientBetaRequirement = client.beta * (sol.paths.get(client.id).size() - 1);
+            double clientAlphaRequirement = client.alpha * (paths.get(client.id).size() - 1);
+            double clientBetaRequirement = client.beta * (paths.get(client.id).size() - 1);
             //1. find score for each client
             double score;
             //Highest priority
-            if (clientsDelay.get(client.id) > clientAlphaRequirement && !client.isRural) {
+            if (clientsDelay.get(client.id) > clientAlphaRequirement){
                 score = 2.0 + ((double) clientsDelay.get(client.id)/clientAlphaRequirement);
                 //Next highest priority
-            } else if  (clientsDelay.get(client.id) > clientBetaRequirement && !client.isRural) {
+            } else if  (clientsDelay.get(client.id) > clientBetaRequirement){
                 score = 1.0 + ((double) clientsDelay.get(client.id)/clientBetaRequirement);
             } else {
                 if (clientBetaRequirement > 0) {
@@ -163,18 +162,12 @@ public class Solution {
                 } else {
                     score = 0.0;
                 }
-
             }
             clientsScore.add(new Pair<>(client.id,score));
         }
         //2. sort client based on score
         clientsScore.sort((a, b) -> Double.compare(b.getSecond(),a.getSecond()));
 
-        //3.add clients to sol.priorities
-        for (int i = clientsScore.size()-1; i >= 0; i--) {
-            int clientId = clientsScore.get(i).getFirst();
-            sol.priorities.put(clientId,clientsScore.size() - i);
-        }
         return clientsScore;
     }
 
