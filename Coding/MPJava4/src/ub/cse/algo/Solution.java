@@ -141,7 +141,7 @@ public class Solution {
     /**
      * @param clientList: list of client
      * @param clientsDelay: hashmap of clients and how long each client takes to reach destination with a finite bandwidth
-     * @param paths: hashmap of clients and their respective shortest path with unlimited bandwidth
+     * @param sol: Solution Object
      * @return a sorted list of client id based on their beta and alpha values
      */
     private  ArrayList<Pair<Integer,Double>> sortByBetaAndAlpha(ArrayList<Client> clientList, HashMap<Integer, Integer> clientsDelay,SolutionObject sol) {
@@ -154,18 +154,15 @@ public class Solution {
             //Highest priority
             if (clientsDelay.get(client.id) > clientAlphaRequirement && !client.isRural) {
                 score = 2.0 + ((double) clientsDelay.get(client.id)/clientAlphaRequirement);
-                sol.priorities.put(client.id,10);
                 //Next highest priority
             } else if  (clientsDelay.get(client.id) > clientBetaRequirement && !client.isRural) {
                 score = 1.0 + ((double) clientsDelay.get(client.id)/clientBetaRequirement);
-                sol.priorities.put(client.id,5);
             } else {
                 if (clientBetaRequirement > 0) {
                     score = (double) clientsDelay.get(client.id) / clientBetaRequirement;
                 } else {
                     score = 0.0;
                 }
-                sol.priorities.put(client.id,0);
 
             }
             clientsScore.add(new Pair<>(client.id,score));
