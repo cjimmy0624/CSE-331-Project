@@ -170,6 +170,11 @@ public class Solution {
         //2. sort client based on score
         clientsScore.sort((a, b) -> Double.compare(b.getSecond(),a.getSecond()));
 
+        //3.add clients to sol.priorities
+        for (int i = clientsScore.size()-1; i >= 0; i--) {
+            int clientId = clientsScore.get(i).getFirst();
+            sol.priorities.put(clientId,clientsScore.size() - i);
+        }
         return clientsScore;
     }
 
