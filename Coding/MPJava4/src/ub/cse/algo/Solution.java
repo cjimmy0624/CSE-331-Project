@@ -158,6 +158,8 @@ public class Solution {
                 score = 1.0 + ((double) clientsDelay.get(client.id)/clientBetaRequirement);
             } else {
                 if (clientBetaRequirement > 0) {
+
+
                     score = (double) clientsDelay.get(client.id) / clientBetaRequirement;
                 } else {
                     score = 0.0;
