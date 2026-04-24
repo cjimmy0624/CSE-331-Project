@@ -64,35 +64,73 @@ public class Solution {
         congestedNode = findRiskyNodes(unsatisfiedClients, sol);
         ArrayList<Integer> avoidedNodes = sortNodesByRisk(congestedNode);
 
-        ArrayList<Integer> topRiskyNodes = new ArrayList<>();
-        int numTries = 3;
+        HashMap<Integer, ArrayList<Integer>> bestPaths = new HashMap<>(sol.paths);
+        HashMap<Integer, Integer> bestPriorities = new HashMap<>(sol.priorities);
+        ArrayList<Integer> bestBandwidths = new ArrayList<>(sol.bandwidths);
 
-        if (avoidedNodes.size() < 3) {
-            numTries = avoidedNodes.size();
-        }
+        HashMap<Integer, Integer> bestDelays = Simulator.run(this.graph, this.clients, sol);
+        ArrayList<Integer> bestUnsatisfied = calUnsatisfiedClients(bestDelays, noDelayPath);
 
-        for (int i = 0; i < numTries; i++) {
-            topRiskyNodes.add(avoidedNodes.get(i));
-        }
+        int maxAvoid = avoidedNodes.size();
+        int notImproved = 0;
 
-        avoidedNodes = topRiskyNodes;
+        for (int avoidCount = 0; avoidCount <= maxAvoid; avoidCount++) {
+            ArrayList<Integer> currentAvoided = new ArrayList<>();
 
-        for (int clientId : unsatisfiedClients) {
-            ArrayList<Integer> newPath = alternativeBFS(this.graph, clientId, avoidedNodes);
+            for (int i = 0; i < avoidCount; i++) {
+                currentAvoided.add(avoidedNodes.get(i));
+            }
 
-            if (newPath != null) {
-                ArrayList<Integer> oldPath = sol.paths.get(clientId);
+            SolutionObject temp = new SolutionObject();
+            temp.paths = new HashMap<>(bestPaths);
+            temp.priorities = new HashMap<>(bestPriorities);
+            temp.bandwidths = new ArrayList<>(bestBandwidths);
 
-                if (oldPath == null || newPath.size() <= oldPath.size() + 2) {
-                    sol.paths.put(clientId, newPath);
+            for (int clientId : bestUnsatisfied) {
+                ArrayList<Integer> clientAvoided = new ArrayList<>();
+
+                for (int node : currentAvoided) {
+                    if (node != clientId && node != graph.contentProvider) {
+                        clientAvoided.add(node);
+                    }
                 }
+                ArrayList<Integer> newPath = alternativeBFS(this.graph, clientId, clientAvoided);
+
+                if (newPath != null) {
+                    ArrayList<Integer> oldPath = temp.paths.get(clientId);
+
+                    if (oldPath == null || newPath.size() <= oldPath.size() + 2) {
+                        temp.paths.put(clientId, newPath);
+                    }
+                }
+            }
+
+            HashMap<Integer, Integer> tempDelay = Simulator.run(this.graph, this.clients, temp);
+            ArrayList<Integer> tempUnsatisfied = calUnsatisfiedClients(tempDelay, noDelayPath);
+
+            if (tempUnsatisfied.size() < bestUnsatisfied.size()) {
+                bestUnsatisfied = tempUnsatisfied;
+                bestPaths = new HashMap<>(temp.paths);
+                bestPriorities = new HashMap<>(temp.priorities);
+                bestBandwidths = new ArrayList<>(temp.bandwidths);
+                notImproved = 0;
+
+                if (bestUnsatisfied.isEmpty()) {
+                    break;
+                }
+            } else {
+                notImproved++;
+            }
+
+            if (notImproved >= 5) {
+                break;
             }
         }
 
-        delayPath = Simulator.run(this.graph, this.clients, sol);
-        unsatisfiedClients = calUnsatisfiedClients(delayPath, noDelayPath);
+        sol.paths = bestPaths;
+        sol.priorities = bestPriorities;
+        sol.bandwidths = bestBandwidths;
 
-        sol.priorities = setPriorities(sol,unsatisfiedClients);
         return sol;
     }
 
@@ -184,6 +222,8 @@ public class Solution {
         for (int node : avoidedNodes) {
             avoidNodes[node] = true;
         }
+        avoidNodes[graph.contentProvider] = false;
+        avoidNodes[clientId] = false;
 
         q.add(graph.contentProvider);
         parent.put(graph.contentProvider, -1);
