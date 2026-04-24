@@ -34,102 +34,122 @@ public class Solution {
      */
     public SolutionObject outputPaths() {
         SolutionObject sol = new SolutionObject();
+
         HashMap<Integer, ArrayList<Integer>> noDelayPath = Traversals.bfsPaths(this.graph, this.clients);
         sol.paths = new HashMap<>(noDelayPath);
         sol.bandwidths = new ArrayList<>(bandwidths);
 
         sol.priorities = new HashMap<>();
+        ArrayList<Integer> allClientIds = new ArrayList<>();
         for (int i = 0; i < clients.size(); i++) {
             sol.priorities.put(clients.get(i).id, i);
+            allClientIds.add(clients.get(i).id);
         }
 
         HashMap<Integer, Integer> delayPath = Simulator.run(this.graph, this.clients, sol);
         ArrayList<Integer> unsatisfiedClients = calUnsatisfiedClients(delayPath, noDelayPath);
 
-        sol.priorities = setPriorities(sol, unsatisfiedClients);
+        int previousUnsatisfiedSize = clients.size() + 1;
 
-        delayPath = Simulator.run(this.graph, this.clients, sol);
-        unsatisfiedClients = calUnsatisfiedClients(delayPath, noDelayPath);
+        while (!unsatisfiedClients.isEmpty() && unsatisfiedClients.size() < previousUnsatisfiedSize) {
+            previousUnsatisfiedSize = unsatisfiedClients.size();
 
-        HashMap<Integer, Integer> congestedNode = findRiskyNodes(unsatisfiedClients, sol);
+            sol.priorities = setPriorities(sol, unsatisfiedClients);
 
-        for (Integer nodeId : congestedNode.keySet()) {
-            int node = congestedNode.get(nodeId);
-            int oldBandwidth = sol.bandwidths.get(nodeId);
-            sol.bandwidths.set(nodeId, oldBandwidth + node);
-        }
-        delayPath = Simulator.run(this.graph, this.clients, sol);
-        unsatisfiedClients = calUnsatisfiedClients(delayPath, noDelayPath);
+            delayPath = Simulator.run(this.graph, this.clients, sol);
+            unsatisfiedClients = calUnsatisfiedClients(delayPath, noDelayPath);
 
-        congestedNode = findRiskyNodes(unsatisfiedClients, sol);
-        ArrayList<Integer> avoidedNodes = sortNodesByRisk(congestedNode);
-
-        HashMap<Integer, ArrayList<Integer>> bestPaths = new HashMap<>(sol.paths);
-        HashMap<Integer, Integer> bestPriorities = new HashMap<>(sol.priorities);
-        ArrayList<Integer> bestBandwidths = new ArrayList<>(sol.bandwidths);
-
-        HashMap<Integer, Integer> bestDelays = Simulator.run(this.graph, this.clients, sol);
-        ArrayList<Integer> bestUnsatisfied = calUnsatisfiedClients(bestDelays, noDelayPath);
-
-        int maxAvoid = avoidedNodes.size();
-        int notImproved = 0;
-
-        for (int avoidCount = 0; avoidCount <= maxAvoid; avoidCount++) {
-            ArrayList<Integer> currentAvoided = new ArrayList<>();
-
-            for (int i = 0; i < avoidCount; i++) {
-                currentAvoided.add(avoidedNodes.get(i));
+            if (unsatisfiedClients.isEmpty()) {
+                return sol;
             }
 
-            SolutionObject temp = new SolutionObject();
-            temp.paths = new HashMap<>(bestPaths);
-            temp.priorities = new HashMap<>(bestPriorities);
-            temp.bandwidths = new ArrayList<>(bestBandwidths);
+            HashMap<Integer, Integer> congestedNode = findRiskyNodes(allClientIds, sol);
 
-            for (int clientId : bestUnsatisfied) {
-                ArrayList<Integer> clientAvoided = new ArrayList<>();
+            for (Integer nodeId : congestedNode.keySet()) {
+                int node = congestedNode.get(nodeId);
+                int oldBandwidth = sol.bandwidths.get(nodeId);
+                sol.bandwidths.set(nodeId, oldBandwidth + node);
+            }
 
-                for (int node : currentAvoided) {
-                    if (node != clientId && node != graph.contentProvider) {
-                        clientAvoided.add(node);
+            delayPath = Simulator.run(this.graph, this.clients, sol);
+            unsatisfiedClients = calUnsatisfiedClients(delayPath, noDelayPath);
+
+            if (unsatisfiedClients.isEmpty()) {
+                return sol;
+            }
+
+            congestedNode = findRiskyNodes(unsatisfiedClients, sol);
+            ArrayList<Integer> avoidedNodes = sortNodesByRisk(congestedNode);
+
+            HashMap<Integer, ArrayList<Integer>> bestPaths = new HashMap<>(sol.paths);
+            HashMap<Integer, Integer> bestPriorities = new HashMap<>(sol.priorities);
+            ArrayList<Integer> bestBandwidths = new ArrayList<>(sol.bandwidths);
+
+            HashMap<Integer, Integer> bestDelays = Simulator.run(this.graph, this.clients, sol);
+            ArrayList<Integer> bestUnsatisfied = calUnsatisfiedClients(bestDelays, noDelayPath);
+
+            for (int avoidCount = 0; avoidCount <= avoidedNodes.size(); avoidCount++) {
+                ArrayList<Integer> currentAvoided = new ArrayList<>();
+
+                for (int i = 0; i < avoidCount; i++) {
+                    currentAvoided.add(avoidedNodes.get(i));
+                }
+
+                SolutionObject temp = new SolutionObject();
+                temp.paths = new HashMap<>(sol.paths);
+                temp.priorities = new HashMap<>(sol.priorities);
+                temp.bandwidths = new ArrayList<>(sol.bandwidths);
+
+                for (int clientId : unsatisfiedClients) {
+                    ArrayList<Integer> clientAvoided = new ArrayList<>();
+
+                    for (int node : currentAvoided) {
+                        if (node != clientId && node != graph.contentProvider) {
+                            clientAvoided.add(node);
+                        }
+                    }
+
+                    ArrayList<Integer> newPath = alternativeBFS(this.graph, clientId, clientAvoided);
+
+                    if (newPath != null) {
+                        ArrayList<Integer> oldPath = temp.paths.get(clientId);
+
+                        if (oldPath == null || newPath.size() <= oldPath.size() + 2) {
+                            temp.paths.put(clientId, newPath);
+                        }
                     }
                 }
-                ArrayList<Integer> newPath = alternativeBFS(this.graph, clientId, clientAvoided);
 
-                if (newPath != null) {
-                    ArrayList<Integer> oldPath = temp.paths.get(clientId);
+                HashMap<Integer, Integer> tempDelay = Simulator.run(this.graph, this.clients, temp);
+                ArrayList<Integer> tempUnsatisfied = calUnsatisfiedClients(tempDelay, noDelayPath);
 
-                    if (oldPath == null || newPath.size() <= oldPath.size() + 2) {
-                        temp.paths.put(clientId, newPath);
+                if (tempUnsatisfied.size() < bestUnsatisfied.size()) {
+                    bestUnsatisfied = tempUnsatisfied;
+                    bestPaths = new HashMap<>(temp.paths);
+                    bestPriorities = new HashMap<>(temp.priorities);
+                    bestBandwidths = new ArrayList<>(temp.bandwidths);
+
+                    if (bestUnsatisfied.isEmpty()) {
+                        break;
                     }
                 }
             }
 
-            HashMap<Integer, Integer> tempDelay = Simulator.run(this.graph, this.clients, temp);
-            ArrayList<Integer> tempUnsatisfied = calUnsatisfiedClients(tempDelay, noDelayPath);
+            sol.paths = bestPaths;
+            sol.priorities = bestPriorities;
+            sol.bandwidths = bestBandwidths;
 
-            if (tempUnsatisfied.size() < bestUnsatisfied.size()) {
-                bestUnsatisfied = tempUnsatisfied;
-                bestPaths = new HashMap<>(temp.paths);
-                bestPriorities = new HashMap<>(temp.priorities);
-                bestBandwidths = new ArrayList<>(temp.bandwidths);
-                notImproved = 0;
+            congestedNode = findRiskyNodes(allClientIds, sol);
 
-                if (bestUnsatisfied.isEmpty()) {
-                    break;
-                }
-            } else {
-                notImproved++;
+            for (Integer nodeId : congestedNode.keySet()) {
+                int extraNeeded = congestedNode.get(nodeId);
+                int oldBandwidth = sol.bandwidths.get(nodeId);
+                sol.bandwidths.set(nodeId, oldBandwidth + extraNeeded);
             }
 
-            if (notImproved >= 5) {
-                break;
-            }
+            delayPath = Simulator.run(this.graph, this.clients, sol);
+            unsatisfiedClients = calUnsatisfiedClients(delayPath, noDelayPath);
         }
-
-        sol.paths = bestPaths;
-        sol.priorities = bestPriorities;
-        sol.bandwidths = bestBandwidths;
 
         return sol;
     }
